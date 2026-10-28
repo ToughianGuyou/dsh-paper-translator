@@ -1,0 +1,18 @@
+# Local-source overlay example: replace the entry path and all filesystem paths.
+# Relative config paths resolve against the Harness process working directory.
+- insert:
+    - id: dsh-pdf-paper-translation-tools
+      name: /absolute/path/dsh-pdf-paper-translation-tools/lib/index.js
+      config:
+        pythonExecutable: /absolute/path/dsh-pdf-paper-translation-tools/.venv/bin/python
+        keepOriginalMarkdown: true
+        allowedInputDirectories:
+          - /absolute/path/to/papers
+        workDirectory: /absolute/path/to/pdf-work
+        outputDirectory: /absolute/path/to/pdf-output
+        fontPath: ''
+        maxPages: 300
+        maxFileBytes: 104857600
+        maxBatchSize: 20
+        timeoutMs: 120000
+        maxResponseBytes: 8388608

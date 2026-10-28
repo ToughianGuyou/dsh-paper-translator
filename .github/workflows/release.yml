@@ -1,0 +1,45 @@
+name: Validate and release
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['market/**', '**.md']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: release
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: npm ci
+      - run: python -m pip install -r python/requirements.txt
+      - run: npm run build && npm run typecheck
+      - run: python examples/generate_demo.py
+      - run: npm test
+      - run: npm run test:python
+      - name: Package
+        run: |
+          find python tests -type d -name __pycache__ -prune -exec rm -rf {} +
+          npm pack
+          sha256sum dsh-pdf-paper-translation-tools-*.tgz > SHA256SUMS
+      - name: Publish version once
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(node -p "require('./package.json').version")
+          tag="v$version"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release $tag already exists; keeping its immutable assets. Bump package version for another release."
+            exit 0
+          fi
+          gh release create "$tag" "dsh-pdf-paper-translation-tools-$version.tgz" SHA256SUMS examples/translated.pdf examples/validation.json --target "$GITHUB_SHA" --title "$tag" --notes-file TEST_REPORT.md

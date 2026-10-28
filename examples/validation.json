@@ -1,0 +1,35 @@
+{
+  "outputPath": "translated.pdf",
+  "pages": 1,
+  "textBlocks": 9,
+  "assets": [
+    {
+      "blockId": "b000006",
+      "sourcePage": 1,
+      "sourceBbox": [
+        130.0,
+        359.25,
+        450.0,
+        484.99
+      ],
+      "outputPage": 1,
+      "outputBbox": [
+        137.63800048828125,
+        195.52100000000002,
+        457.63800048828125,
+        321.261
+      ],
+      "kind": "asset",
+      "renderMeanAbsoluteDifference": 0.0
+    }
+  ],
+  "sourceSha256": "5165898c1df7e6d96a0a5f74f3efa793bbcb34023a5e808ebc49f50d204b9351",
+  "warnings": [],
+  "validation": {
+    "reopened": true,
+    "allPagesRendered": true,
+    "assetAppearanceBeforePlacement": "exact",
+    "physicalSizePreserved": true,
+    "assetAppearanceAfterPlacement": "mean absolute channel difference <= 0.005"
+  }
+}

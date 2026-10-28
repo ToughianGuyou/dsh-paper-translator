@@ -1,0 +1,67 @@
+{
+  "name": "dsh-pdf-paper-translation-tools",
+  "version": "0.1.0",
+  "description": "Conservative PDF paper extraction, agent translation validation and PDF reflow for DeepSeek Harness",
+  "type": "module",
+  "main": "lib/index.js",
+  "files": [
+    "lib",
+    "src",
+    "python",
+    "scripts",
+    "tests",
+    "examples",
+    "cordis.patch.yml",
+    "config.example.yml",
+    "README.md",
+    "AGENT_GUIDE.md",
+    "TEST_REPORT.md",
+    "THIRD_PARTY_NOTICES.md",
+    "LICENSE",
+    "tsconfig.json"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test tests/*.test.mjs",
+    "test:python": "python3 -m unittest discover -s tests -p 'test_*.py'",
+    "prepack": "npm run build"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "*",
+    "@deepseek-ai/dsh-tools": "^0.2.2-alpha.2"
+  },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "*"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "*",
+    "@deepseek-ai/dsh-tools": "0.2.2-alpha.2",
+    "@types/node": "^22.0.0",
+    "typescript": "~5.9.3"
+  },
+  "license": "AGPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ToughianGuyou/dsh-pdf-paper-translation-tools.git"
+  },
+  "homepage": "https://github.com/ToughianGuyou/dsh-pdf-paper-translation-tools#readme",
+  "bugs": {
+    "url": "https://github.com/ToughianGuyou/dsh-pdf-paper-translation-tools/issues"
+  },
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "pdf",
+    "translation",
+    "paper"
+  ]
+}
