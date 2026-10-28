@@ -1,0 +1,40 @@
+{
+  "format": 1,
+  "title": {
+    "en": "PDF Paper Translation Tools",
+    "zh": "PDF 论文翻译工具"
+  },
+  "description": {
+    "en": "Community DSH plugins maintained by ToughianGuyou",
+    "zh": "ToughianGuyou 维护的第三方 dsh 插件索引"
+  },
+  "plugins": [
+    {
+      "name": "dsh-pdf-paper-translation-tools",
+      "title": {
+        "en": "PDF Paper Translation Tools",
+        "zh": "PDF 论文翻译工具"
+      },
+      "description": {
+        "en": "Translate text-layer papers with the current Harness agent; preserve figures, captions and formulas. Python and PyMuPDF required; no OCR.",
+        "zh": "使用当前 Harness agent 翻译文字层论文，保留图表、图注及公式。需要 Python 和 PyMuPDF，不支持 OCR。"
+      },
+      "author": "ToughianGuyou",
+      "homepage": "https://github.com/ToughianGuyou/dsh-pdf-paper-translation-tools#readme",
+      "repository": {
+        "url": "https://github.com/ToughianGuyou/dsh-pdf-paper-translation-tools"
+      },
+      "versions": [
+        {
+          "version": "0.1.0",
+          "publishTimestamp": 1793199176,
+          "source": {
+            "type": "git",
+            "url": "https://github.com/ToughianGuyou/dsh-pdf-paper-translation-tools",
+            "commit": "766a303bb2ceff14e118270490f8028dc5c3e560"
+          }
+        }
+      ]
+    }
+  ]
+}
