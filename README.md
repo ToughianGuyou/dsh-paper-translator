@@ -2,60 +2,162 @@
 
 为 DeepSeek Harness 提供 PDF 论文预检、分块读取、译文校验与重新排版。翻译由 Harness 当前 agent 完成；插件不调用额外翻译 API，也不需要新的 API Key。输入 PDF 始终保留。
 
-这是有明确停止边界的首版实现，不能保证任意论文都能自动解析。请同时阅读 `TEST_REPORT.md`，以其中实际执行的验证为准。当前环境未接入你的 Harness 安装和真实模型会话，不能把离线测试当作你机器上的完整闭环验收。
+当前为 `0.1.0` 首版，解析有明确的支持边界。已有合成 PDF、SDK 工具闭环及 GitHub CI 验证；尚未完成完整真实论文与真实模型会话验收。请阅读 [测试报告](./TEST_REPORT.md)，不要将离线测试等同于所有论文或所有 Desktop / Web 版本的兼容性保证。
 
-## GitHub 下载与 dsh 市场发现
+## 安装
 
-在仓库 Releases 下载 `.tgz` 安装包，安装后仍需配置 Python 环境和允许读取的论文目录。
+支持在 **DSH Desktop 客户端**或**DSH Web 服务端**安装。插件已发布到 [npm 官方源](https://www.npmjs.com/package/dsh-pdf-paper-translation-tools)，当前正式版为 `0.1.0`。
 
-```bash
-dsh plugin --profile papers add ./dsh-pdf-paper-translation-tools-0.1.0.tgz
+安装分为两部分：**安装 npm 插件 → 配置 Python 环境和论文目录**。npm 包包含构建好的 `lib/`，正常使用不需要克隆源码、编译或执行 `npm publish`；npm 安装不会自动安装 Python 或 PyMuPDF。
+
+### 运行要求
+
+- Python 3.10+，并在插件使用的 Python 环境中安装 `PyMuPDF==1.26.6`。
+- Node.js 22.13+（独立 CLI 环境）；Desktop 使用其随附运行环境，仍需单独提供 Python。
+- 已配置模型、可使用工具的 DeepSeek Harness。接口基于 `@deepseek-ai/dsh-tools@0.2.2-alpha.2`；实际兼容性由安装时的 peer 依赖检查和加载结果确定。
+- 本插件提供五个 agent 工具，没有独立的翻译设置页面、PDF 上传页面或 OCR 功能。
+
+### Desktop 客户端：从 npm 安装
+
+1. 打开 DSH Desktop，进入侧边栏的 **插件**，点击 **添加插件**。
+2. 在“包名或地址”输入：
+
+   ```text
+   dsh-pdf-paper-translation-tools
+   ```
+
+3. “安装源”选择 **npm 官方源**，点击 **安装**。其他源可能有同步延迟；包名相同。界面文字随 Desktop 版本可能略有不同。
+4. 在 **已安装** 中找到本插件，确认已启用。
+5. 完成下方“首次配置”，再按宿主提示重启；必要时完整退出 Desktop（包括托盘）后重新打开。
+
+有可用的 `dsh` 命令时，也可在终端安装到 Desktop 的 profile：
+
+```powershell
+dsh plugin --profile desktop add dsh-pdf-paper-translation-tools@0.1.0 --registry=https://registry.npmjs.org
 ```
 
-在 dsh 中启用实验性的自定义插件市场，打开“发现 → 添加索引源”，填写：
+终端找不到 `dsh` 时，使用上面的客户端安装入口即可。不要为了安装本插件另外创建 `papers` profile，然后误以为它已安装到 Desktop；插件属于所安装的 profile。
+
+### Web 端：在运行 dsh 的机器上安装
+
+在 **运行 DSH Web 的机器**上打开终端，执行：
+
+```bash
+dsh plugin --profile web add dsh-pdf-paper-translation-tools@0.1.0 --registry=https://registry.npmjs.org
+```
+
+完成“首次配置”后，重启原来的 Web 服务。使用标准 `web` profile 的实例通常以以下命令启动：
+
+```bash
+dsh web
+```
+
+如果使用自定义 profile、Docker、远程服务器或服务管理器，请沿用原有启动方式和 profile；上面的 `--profile web` 也要替换为实际 profile。Docker 中需在容器内安装 Python 依赖并挂载论文与输出目录。
+
+**浏览器所在电脑的路径不等于服务器路径。** 例如浏览器在 Windows、dsh 在 Linux 服务器时，工具只能读取服务器上的文件；需要先将 PDF 放到服务器允许读取的目录，再提供服务器绝对路径。本插件本身不提供浏览器上传入口。
+
+### 首次配置：Python 与文件目录（两端都需要）
+
+以下命令均在 **插件实际运行的机器**上执行。推荐把 Python 虚拟环境放在插件包目录之外，避免插件升级时丢失。
+
+#### Windows 示例
+
+在 PowerShell 执行（盘符和目录可自行替换）：
+
+```powershell
+py -3 -m venv E:\dsh-paper-env
+E:\dsh-paper-env\Scripts\python.exe -m pip install PyMuPDF==1.26.6
+
+New-Item -ItemType Directory -Force E:\papers, E:\pdf-work, E:\pdf-output
+E:\dsh-paper-env\Scripts\python.exe -c "import pymupdf; print(pymupdf.VersionBind)"
+```
+
+最后应打印 `1.26.6`。不必激活虚拟环境；后续直接配置 Python 可执行文件的绝对路径。
+
+#### Linux / macOS 示例
+
+```bash
+python3 -m venv "$HOME/.venvs/dsh-paper"
+"$HOME/.venvs/dsh-paper/bin/python" -m pip install PyMuPDF==1.26.6
+mkdir -p "$HOME/papers" "$HOME/pdf-work" "$HOME/pdf-output"
+"$HOME/.venvs/dsh-paper/bin/python" -c "import pymupdf; print(pymupdf.VersionBind)"
+```
+
+#### 写入对应 profile 的配置
+
+编辑当前实例的 `$DSH_HOME/profiles/<profile>/cordis.patch.yml`：
+
+| 宿主 | profile | 配置文件 |
+| --- | --- | --- |
+| 标准 Desktop | `desktop` | `$DSH_HOME/profiles/desktop/cordis.patch.yml` |
+| 标准 Web | `web` | `$DSH_HOME/profiles/web/cordis.patch.yml` |
+| 自定义实例 | 实际 profile 名 | `$DSH_HOME/profiles/<实际名称>/cordis.patch.yml` |
+
+`$DSH_HOME` 表示此实例使用的 Harness 数据目录，不是要求原样粘贴的路径；未自定义时通常为用户目录下的 `.dsh`。Desktop 或启动器若指定了其他数据目录，以实际实例为准。若文件已有配置，**追加下面的列表条目，保留原有条目**。
+
+npm 插件已安装后，用相同的 `id` 覆盖它的配置；这里不要再添加 `insert` 或源码入口路径。Windows 示例：
+
+```yaml
+- id: dsh-pdf-paper-translation-tools
+  config:
+    pythonExecutable: E:/dsh-paper-env/Scripts/python.exe
+    keepOriginalMarkdown: true
+    allowedInputDirectories:
+      - E:/papers
+    workDirectory: E:/pdf-work
+    outputDirectory: E:/pdf-output
+```
+
+Linux / macOS 使用同一结构，把路径改成该机器的绝对路径，例如 `/home/you/.venvs/dsh-paper/bin/python`、`/home/you/papers`、`/home/you/pdf-work` 和 `/home/you/pdf-output`。不要在 YAML 中依赖 `~` 或 `$HOME` 自动展开；macOS 用户目录通常位于 `/Users/<用户名>`。
+
+- `pythonExecutable` 必须指向刚安装 PyMuPDF 的 Python。
+- `allowedInputDirectories` 是论文实际所在目录；插件会检查解析后的真实路径。
+- `workDirectory` 保存恢复进度，`outputDirectory` 保存验证通过的交付结果。
+- 相同 `id` 的配置会整体替换，需重述你要保留的自定义字段；未写出的字段使用插件默认值。
+- `config.example.yml` 是**源码方式加载**的例子；不要把它和已安装的 npm bundle 同时加载。
+
+保存后重启相应 Desktop / Web 宿主。独立 CLI 可先用 `dsh --profile web --dump-config` 检查最终配置（Desktop 对应 `desktop`；命令行与 Desktop 必须使用同一个数据目录）。
+
+### 确认安装与第一次翻译
+
+让 agent 列出是否可调用以下五个工具：
+
+`pdf_prepare`、`pdf_read_blocks`、`pdf_submit_translations`、`pdf_export`、`pdf_job_status`。
+
+然后将论文放入已配置目录，在对话中输入，例如：
+
+> 请使用 PDF 论文翻译工具，将 E:/papers/paper.pdf 完整翻译成中文。先全文预检，再分批翻译和提交，保持所有保护标记；图表、图注和参考文献保留原文。全部完成并通过导出校验后，告诉我译文 PDF 的路径。如果预检失败，报告原因和页码并停止。
+
+Linux / macOS 或远程 Web 请替换为相应的服务端路径。agent 应遵循 [AGENT_GUIDE.md](./AGENT_GUIDE.md)；无需用户手动逐个调用工具。译文在配置的 `outputDirectory` 对应任务目录中，通常包含 `translated.pdf`、`validation.json` 和可选的 `original.md`。远程服务的输出位于服务端，需通过该部署提供的文件访问方式取回。
+
+### 可选：通过市场发现或离线安装
+
+**自定义市场：** 启用 dsh 的实验性自定义插件市场，进入“发现 → 添加索引源”，填写：
 
 ```text
 https://raw.githubusercontent.com/ToughianGuyou/dsh-pdf-paper-translation-tools/main/market/index.json
 ```
 
-添加后搜索 `dsh-pdf-paper-translation-tools`。该索引是本仓库维护的第三方索引，不代表官方审核或内置收录。市场安装固定到索引中的 Git 提交；仓库提交了 `lib/`，无需安装时构建。Python 依赖须按下文单独安装。
+刷新后搜索 `dsh-pdf-paper-translation-tools`。当前索引使用 **npm 官方源的 0.1.0**，是本项目维护的第三方索引，不代表官方审核或内置收录；直接从 npm 添加插件无需添加索引。
 
-## 安装
-
-需要 Python 3.10+、Node.js 22.13+ 与支持下述工具 API 的 DeepSeek Harness。入口按官方 `@deepseek-ai/dsh-tools@0.2.2-alpha.2` API 编写；请先检查 `dsh --version`，旧版本工具 API 不能假定兼容。注册表的 `latest` 标签可能仍指向较旧版本，开发依赖使用明确版本。
-
-在解压的项目目录执行：
+**安装包：** 在 [Releases](https://github.com/ToughianGuyou/dsh-pdf-paper-translation-tools/releases) 下载 `.tgz`，在对应宿主机器上执行（Desktop 将 `web` 换为 `desktop`）：
 
 ```bash
-python3 -m venv .venv
-.venv/bin/python -m pip install -r python/requirements.txt
+dsh plugin --profile web add ./dsh-pdf-paper-translation-tools-0.1.0.tgz
 ```
 
-Windows 对应命令：
+这只能省去插件包的 npm 下载；Python 依赖仍需准备，并完成同样的首次配置。
 
-```powershell
-py -3 -m venv .venv
-.venv\Scripts\python.exe -m pip install -r python\requirements.txt
-```
+### 常见问题
 
-包内已有 `lib/`，安装不需要编译。推荐先通过本地 overlay 加载，便于明确 Python 和文件目录：复制 `config.example.yml` 到自己的位置，填写插件 `lib/index.js`、Python 可执行文件、论文目录、工作目录与输出目录的绝对路径，然后启动：
+| 现象 | 检查方式 |
+| --- | --- |
+| npm 官方源能装，镜像源提示找不到 | 换 npm 官方源，确认包名带 `dsh-`；镜像可能尚未同步 |
+| 已安装但 agent 看不到工具 | 检查启用状态、profile 和数据目录是否一致，重启宿主并查看加载日志 |
+| `DEPENDENCY_MISSING` | 检查 `pythonExecutable`；用同一可执行文件运行 `-c "import pymupdf"` |
+| 找不到 PDF 或目录未授权 | 使用宿主机器上的绝对路径，并确认位于 `allowedInputDirectories` 内 |
+| 扫描件或复杂版面停止 | 当前无 OCR；按返回代码与页码处理，不能绕过停止状态冒充全文翻译 |
 
-```bash
-dsh --patch /absolute/path/to/config.example.yml --dump-config
-dsh --patch /absolute/path/to/config.example.yml
-```
-
-另一种方式是在包含解压目录的上级目录安装 bundle：
-
-```bash
-dsh plugin --profile papers add ./dsh-pdf-paper-translation-tools
-dsh --profile papers --dump-config
-dsh --profile papers
-```
-
-使用 bundle 时，需要在 profile 的 `cordis.patch.yml` 覆盖同一 id 的配置，尤其是 Python 路径与允许读取的目录。请依据你版本的官方配置说明填写覆盖条目；不要同时加载同名本地 overlay 与 bundle。默认 Python 是 PATH 中的 `python3`，其环境中必须安装依赖。配置变更支持 Harness 的插件热重载；不能确认热重载时，退出并用原启动命令重新启动。
-
-查看五个工具是否出现：`pdf_prepare`、`pdf_read_blocks`、`pdf_submit_translations`、`pdf_export`、`pdf_job_status`。不出现时先检查插件加载日志、Harness 版本与 `tools` 服务。
 
 ## 配置
 
