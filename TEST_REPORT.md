@@ -1,52 +1,11 @@
-# 0.1.1 兼容性补充（2026-10-29）
+# 0.2.0 validation
 
-- 目标：支持用户的 DSH Desktop 0.2.1-rc.3；原 0.1.0 的 peer 范围错误地排除了它。
-- 开发依赖切换为 dsh-tools 0.2.1-rc.3 和其要求的 Cordis ~4.0.5；peer 范围声明 ^0.2.1-rc.3 || ^0.2.2-alpha.2。
-- 原 SDK 将注册器导出为 ToolRuntime，新 SDK 导出为 ToolsService；仅测试适配该命名差异，生产入口使用的 defineTool / ctx.tools.register 无需修改。
-- 0.2.1-rc.3 隔离环境：构建、类型检查、10 项 Node 测试和 21 项 Python 测试通过。使用真实目标 SDK 注册五工具并执行完整离线闭环。
-- GitHub CI 增加 0.2.1-rc.3 / 0.2.2-alpha.2 两组 SDK 验证，发布任务须等两组成功。
-- 测试运行在 Linux，尚未验证用户 Windows Desktop 安装、实际模型会话或完整真实论文；不能将 SDK 测试等同于客户端完整验收。
-- GitHub Release 提供 0.1.1 安装包；npm 0.1.1 需要维护者另行发布，不能用 README 或市场索引修改替代 npm 发版。
+Primary workflow: HTML → translated HTML. No browser or PDF renderer is used for HTML jobs.
 
----
+Local validation: TypeScript typecheck and build pass; 11 Node tests pass; Python suite has 49 passing tests and 3 skipped optional real-PDF tests (52 total).
 
-# 验证报告
+HTML coverage includes formula-node preservation (MathML), references, appendix, translated captions and table cells, inline formatting, embedded local images, input immutability, placeholder loss rejection, script removal, escaped translation markup, unsupported-prose detection, source staleness and URL/path restrictions. SDK integration exercises prepare/read/submit/export/status using the installed 0.2.1-rc.3 SDK. GitHub release workflow additionally tests 0.2.2-alpha.2; its result must be checked separately.
 
-验证日期：2026-10-28。版本：0.1.0；解析器版本：1.0.1。
+These are synthetic and interface tests, not full-paper translation-quality acceptance. DDPM full HTML translation has not been validated. Structural checks do not guarantee semantic accuracy, browser visual fidelity, or universal website compatibility.
 
-## 环境与结果
-
-Node.js 24.22.1、Python 3.12.14、PyMuPDF 1.26.6；Harness SDK 使用 package-lock.json 锁定的依赖。
-
-| 检查 | 结果 |
-| --- | --- |
-| `npm run build` | 通过，生成 lib/ |
-| `npm run typecheck` | 通过 |
-| `npm test` | 10 项通过：8 项进程桥接、2 项真实 SDK 注册测试 |
-| `python3 -m unittest discover -s tests -p 'test_*.py'` | 21 项通过 |
-| `python3 examples/generate_demo.py` | 合成英文论文到中文 PDF 闭环通过 |
-
-测试输入均为代码生成的人工合成 PDF；没有使用真实研究论文，测试数量不代表真实论文样本数。
-
-## 已验证行为
-
-- 通过真实 Cordis Context / ToolsService 注册五个工具，并执行 prepare → 分批 read → submit → export → status，校验 SDK 输入输出 schema 与渲染。接口测试提交英文原文，只验证协议，不作为翻译质量证据。
-- 人工编写中文译文的单页合成论文包含标题、摘要、正文、引用、矢量图及图注和参考文献。导出可重新打开，逐页可渲染，中文可提取，无未恢复占位符。已目视检查 examples/preview.png，未见重叠、缺字、裁切或丢图。
-- 样例图表及图注区域保持 320 × 125.74 PDF 点，源/目标渲染平均绝对通道差为 0；实际数据见 examples/validation.json。源文件哈希不变。
-- 回归覆盖长中文排版增页、图表外原文不残留、行内公式/引用恢复、缺译拒绝、整批占位符校验原子性、重复与过期提交、中断恢复、Markdown 关闭、输入路径授权边界、页数和大小上限。
-- 双栏参考文献按左栏后右栏排序，跨栏参考文献标题作为区段边界；作者/机构等前置信息保留。正文 URL/DOI 不再自动归为元数据。
-- 同一段落多条脚注保留顺序与关联；脚注正文、引用和标记分别保护。缺失或歧义锚点停止处理。
-- 扫描及混合扫描合成页返回停止状态与准确页码，停止任务禁止读块、提交和导出。
-- 进程桥接覆盖依赖缺失、取消、超时、请求和响应上限、无效 JSON，路径中的 shell 字符不执行。
-
-## 支持边界与尚未完成的验收
-
-这是保守的规则解析首版，不是任意论文通用的布局模型。测试验证了选定合成版式，不证明未知复杂布局都能可靠识别；OCR、复杂数学边界、多栏浮动框、表格/图注边界不明确时须停止。跨页段落保留独立块，不猜测合并。
-
-尚未在用户实际 Harness 安装及模型会话中验收，也未使用完整真实论文完成模型翻译。真实论文的无框表格、跨页表格、复杂公式、整页图与更多字体仍需要样本验收。离线 SDK 闭环不能替代这些项目。
-
-目标语言测试覆盖中文 zh 与英文 en；其他字体支持语言未做完整验收，阿拉伯语等复杂塑形语言会明确拒绝。结构和字符覆盖校验不能证明译文语义准确；中文样例仅抽查了人工译文，未测模型翻译准确率。
-
-## 复现
-
-按 README 安装 Python 依赖和开发依赖后，依次执行上表命令。examples/generate_demo.py 重新生成源样例、中文输出、原文 Markdown、验证 JSON 和预览。测试产生的临时任务会自动清理。源码、构建结果、测试、配置及本报告随安装包提供。
+Legacy PDF extraction remains experimental. The previously supplied DDPM PDF still has unresolved boundary issues; this release does not claim to fix general PDF formula detection. Optional real-PDF tests require DDPM_FIXTURE_PATH and do not bundle the user's paper.

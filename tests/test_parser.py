@@ -11,6 +11,46 @@ from paper_translation.parser import parse_pdf
 
 
 class ParserTests(unittest.TestCase):
+    def test_appendix_after_references_becomes_translatable_again(self):
+        def build(doc):
+            p=doc.new_page()
+            p.insert_text((60,80),'References',fontsize=14)
+            p.insert_text((60,120),'[1] Example Author. A preserved reference.',fontsize=11)
+            p=doc.new_page()
+            p.insert_text((60,80),'Supplementary information',fontsize=14)
+            p.insert_text((60,120),'This supplementary paragraph must be translated.',fontsize=11)
+            p.insert_text((60,170),'A Extended derivations',fontsize=14)
+            p.insert_text((60,210),'The derivation explains the mathematical assumptions.',fontsize=11)
+        r=self.parse(build)
+        self.assertFalse(r['issues'],r['issues'])
+        self.assertFalse(r['blocks'][1]['translate'])
+        self.assertTrue(all(b['translate'] for b in r['blocks'][2:]))
+
+    def test_single_column_not_inferred_from_author_columns(self):
+        def build(doc):
+            p=doc.new_page(width=600,height=800)
+            p.insert_text((50,80),'Alice Smith',fontsize=11)
+            p.insert_text((350,80),'Peter Jones',fontsize=11)
+            p.insert_text((60,140),'Abstract',fontsize=14)
+            p.insert_textbox(fitz.Rect(60,180,540,270),
+                'This is a single column paragraph spanning the center of the page. '
+                'Its reading order must not be inferred from the short author cells.',fontsize=11)
+        r=self.parse(build)
+        self.assertFalse(r['issues'],r['issues'])
+        self.assertTrue(any(b['translate'] and 'single column' in b['text'] for b in r['blocks']))
+
+    def test_arxiv_margin_stamp_is_furniture_but_other_rotated_text_stops(self):
+        def build(doc):
+            p=doc.new_page()
+            p.insert_text((25,500),'arXiv:2006.11239v2  [cs.LG]  16 Dec 2020',rotate=90,fontsize=10)
+            p.insert_text((60,140),'A normal paragraph contains readable text.',fontsize=11)
+        r=self.parse(build)
+        self.assertFalse(r['issues'],r['issues'])
+        self.assertTrue(any(w['code']=='ARXIV_MARGIN_STAMP' for w in r['warnings']))
+        def unknown(doc):
+            p=doc.new_page();p.insert_text((100,500),'Important rotated body prose',rotate=90,fontsize=10)
+        self.assertTrue(self.parse(unknown)['issues'])
+
     def parse(self, build):
         with tempfile.TemporaryDirectory() as tmp:
             path = pathlib.Path(tmp) / 'paper.pdf'

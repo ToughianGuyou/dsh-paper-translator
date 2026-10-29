@@ -13,12 +13,20 @@ from pathlib import Path
 
 import fitz
 
-PARSER_VERSION = '1.0.1'
-CAPTION = re.compile(r'^(?:fig(?:ure)?\.?|table|图|表)\s*[\dIVXivx]+[\s.:：)\-]', re.I)
+from .math_runs import protect_math_lines, display_equation_regions
+from .regions import visible_image_rects, asset_regions
+
+PARSER_VERSION = '1.1.0'
+CAPTION = re.compile(r'^(?:fig(?:ure)?\.?|table|图|表)\s*[\dIVXivx]+\s*[:.：)]', re.I)
 REFERENCE = re.compile(r'^(?:references|bibliography|参考文献)\s*$', re.I)
 CITATION = re.compile(r'\[(?:\d+[a-z]?(?:\s*[,;–−-]\s*\d+[a-z]?)*)(?:\s*)\]|【\d+(?:\s*[,，、–-]\s*\d+)*】')
 MATH_FONT = re.compile(r'(?:math|symbol|cmmi|cmsy|cmex|msam|msbm|stix.*(?:math|symbol))', re.I)
 MATH_CHAR = re.compile('[=∑∏∫√∞≈≠≤≥∂∇∈∉⊂⊆±×÷]')
+APPENDIX = re.compile(r'^(?:appendix\b|appendices\b|supplement(?:ary)?\b|additional\s+(?:information|results|experiments)\b|extra\s+information\b)', re.I)
+
+
+def _appendix_heading(text):
+    return bool(APPENDIX.match(text) or re.match(r'^[A-Z](?:\.|\s)\s*[A-Z][a-z]',text))
 
 
 def _rect(v): return fitz.Rect(v)
@@ -68,6 +76,31 @@ def _cluster_rects(rectangles, gap=3):
     return clusters
 
 
+def _partition_text_regions(texts, regions):
+    """Split native blocks at *whole-line* asset boundaries without losing lines.
+
+    A PDF text block can contain a display followed by ordinary prose. Keeping
+    its large union bbox would falsely imply that the crop slices that prose.
+    Individual line intersections remain blocking; this is no clipping waiver.
+    """
+    output=[]
+    for block in texts:
+        groups=[]
+        for line in block['_raw'].get('lines',[]):
+            rect=_rect(line['bbox'])
+            owners=tuple(i for i,r in enumerate(regions)
+                         if _overlap(rect,r) >= _area(rect)*.98)
+            if groups and groups[-1][0]==owners:
+                groups[-1][1].append(line)
+            else:
+                groups.append((owners,[line]))
+        for _,lines in groups:
+            raw={**block['_raw'],'lines':lines,'bbox':_box(_union([_rect(l['bbox']) for l in lines]))}
+            item=_text_block(raw,len(output))
+            if item: output.append(item)
+    return output
+
+
 def _scan_rows(page):
     """Detect repeated narrow dark bands in large raster pages, without OCR."""
     pix = page.get_pixmap(matrix=fitz.Matrix(.65, .65), colorspace=fitz.csGRAY, alpha=False)
@@ -97,8 +130,17 @@ def _ordered(items, width, issues, page):
     mid = width / 2
     left = [b for b in items if b['_rect'].x1 <= mid + 6]
     right = [b for b in items if b['_rect'].x0 >= mid - 6]
+    def prose_column(b):
+        # A formula number, author cell, chart label or math fragment is not a
+        # column. Infer gutters only from independently readable prose runs.
+        text = b.get('text', '')
+        return (b.get('type') in ('body', 'reference')
+                and b['_rect'].width >= width * .22
+                and len(re.findall(r'[A-Za-z]{2,}', text)) >= 4
+                and not re.search(r'@|https?://', text)
+                and not any(MATH_FONT.search(s.get('font', '')) for s in b.get('_spans', [])))
     paired = any(min(a['_rect'].y1,b['_rect'].y1) > max(a['_rect'].y0,b['_rect'].y0)
-                 for a in left for b in right)
+                 for a in left if prose_column(a) for b in right if prose_column(b))
     if not paired:
         return sorted(items, key=lambda b: (b['_rect'].y0,b['_rect'].x0))
     spanning = [b for b in items if b not in left and b not in right]
@@ -122,35 +164,9 @@ def _ordered(items, width, issues, page):
 
 
 def _protect(block, page, counters, issues):
-    protected, lines = {}, []
-    raw = block['_raw']
-    for line in raw.get('lines', []):
-        spans = line.get('spans', [])
-        bits, i = [], 0
-        while i < len(spans):
-            span = spans[i]
-            text = span.get('text','')
-            if id(span) in block.get('_footnoteTokens', {}):
-                token = block['_footnoteTokens'][id(span)]
-                protected[token] = {'kind':'literal', 'text':text.strip()}
-                bits.append(token); i += 1
-            elif MATH_FONT.search(span.get('font','')):
-                group = [span]; i += 1
-                while i < len(spans) and MATH_FONT.search(spans[i].get('font','')):
-                    group.append(spans[i]); i += 1
-                r = _union([_rect(s['bbox']) for s in group])
-                counters['MATH'] += 1
-                token = '{{MATH_%05d}}' % counters['MATH']
-                protected[token] = {'kind':'math','page':page,'bbox':_box(r),
-                                    'baseline':group[0].get('origin',[0,r.y1])[1]}
-                bits.append(token)
-            else:
-                # Symbols in a prose font can be math, code, or prose: don't guess.
-                if MATH_CHAR.search(text) or re.search(r'[α-ωΑ-Ω]|[A-Za-z0-9][+^_][A-Za-z0-9]',text) or (span.get('flags',0)&2 and re.fullmatch(r'\s*[A-Za-z][0-9]*\s*',text)):
-                    _issue(issues,page,'Mathematical expression boundary cannot be established from font spans.')
-                bits.append(text); i += 1
-        lines.append(''.join(bits))
-    text = _join_lines(lines)
+    text, protected, uncertain = protect_math_lines(block, page, counters)
+    if uncertain:
+        _issue(issues,page,'Mathematical expression boundary cannot be established from font spans.')
     def replace(match):
         counters['CITE'] += 1
         token = '{{CITE_%05d}}' % counters['CITE']
@@ -189,6 +205,11 @@ def parse_pdf(path, config=None):
             expanded=[]
             for native in data['blocks']:
                 if native['type']!=0: continue
+                # Native math/prose blocks can contain a displaced integral or
+                # subscript tail. A change of x-start is not a new column there.
+                if any(MATH_FONT.search(s.get('font','')) for line in native.get('lines',[]) for s in line.get('spans',[])):
+                    expanded.append(native)
+                    continue
                 groups=[]
                 for line in native.get('lines',[]):
                     r=_rect(line['bbox'])
@@ -203,7 +224,7 @@ def parse_pdf(path, config=None):
             bad = sum(c=='\ufffd' or 0xE000 <= ord(c) <= 0xF8FF or ord(c)<32 and c not in '\n\t\r' for c in content)
             if bad > max(2,len(content)*float(config.get('maxInvalidCharacterRatio',.015))):
                 _issue(issues,num,'Text contains replacement/private-use characters; mapping is unusable.','TEXT_LAYER_UNUSABLE')
-            images = [_rect(x['bbox']) for x in page.get_image_info()]
+            images = visible_image_rects(page)
             coverage = max([_area(r & page.rect)/max(1,_area(page.rect)) for r in images] or [0])
             if coverage >= float(config.get('scanImageCoverage',.75)):
                 traces = page.get_texttrace()
@@ -212,8 +233,6 @@ def parse_pdf(path, config=None):
                     scanned.append(num)
                 else:
                     _issue(issues,num,'Large raster page could be a scan or full-page illustration; review required.')
-            if any(line.get('dir',(1,0)) != (1,0) for b in texts for line in b['_raw'].get('lines',[])):
-                _issue(issues,num,'Vertical or rotated text requires review.')
             all_pages.append((texts,images))
         if scanned:
             code = 'UNSUPPORTED_SCANNED_PDF' if len(scanned)==len(doc) else 'UNSUPPORTED_MIXED_PDF'
@@ -240,6 +259,13 @@ def parse_pdf(path, config=None):
             front_matter_end = min(boundaries) if boundaries else doc[0].rect.height*.25
         for page,(texts,images) in zip(doc,all_pages):
             num = page.number+1
+            # Recognize only the well-defined arXiv margin stamp, not arbitrary
+            # rotated prose. Chart-axis labels are handled after asset grouping.
+            stamps = [b for b in texts if b['_rect'].x1 < page.rect.width*.08
+                      and re.fullmatch(r'arXiv:\d{4}\.\d{4,5}v\d+\s+\[[^\]]+\]\s+\d{1,2}\s+[A-Za-z]{3}\s+\d{4}', b['text'])]
+            if stamps:
+                warnings.append({'code':'ARXIV_MARGIN_STAMP','pages':[num], 'message':'Recognized non-body arXiv margin stamp omitted.'})
+                texts=[b for b in texts if b not in stamps]
             texts = [b for b in texts if not ((b['_rect'].y1<page.rect.height*.075 or b['_rect'].y0>page.rect.height*.925)
                      and (re.fullmatch(r'\s*\d+\s*',b['text']) or furniture[re.sub(r'\d+','#',b['text'])]>=max(2,len(doc)*.6)))]
             # Rule-based table detection uses lines plus native text geometry.
@@ -249,28 +275,20 @@ def parse_pdf(path, config=None):
                     if table.row_count>=2 and table.col_count>=2: table_rects.append(_rect(table.bbox))
             except Exception as exc:
                 _issue(issues,num,'Table detection failed: '+type(exc).__name__)
-            drawings = []
-            for d in page.get_drawings():
-                r = _rect(d['rect'])
-                # Thin horizontal footnote/separator rules aren't standalone figures.
-                if r.height > 3 and r.width > 3:
-                    drawings.append(r)
-            regions = _cluster_rects(images+table_rects+drawings, gap=4)
-            # Mathematical display lines with dedicated fonts are preserved whole.
-            for b in texts:
-                spans=b['_spans']
-                math_chars=sum(len(s.get('text','')) for s in spans if MATH_FONT.search(s.get('font','')))
-                if math_chars and math_chars/max(1,len(b['text']))>.5:
-                    regions.append(b['_rect'])
-            regions = _cluster_rects(regions, gap=2)
+            regions = asset_regions(page, texts, body_size)
+            for region in display_equation_regions(texts, body_size, page.rect.width):
+                if not any(_overlap(region, r) >= _area(region)*.98 for r in regions):
+                    regions.append(region)
+            texts=_partition_text_regions(texts,regions)
             assigned=set()
             for ri,region in enumerate(regions):
-                inside=[b for b in texts if _overlap(b['_rect'],region)/max(1,_area(b['_rect']))>.8]
+                inside=[b for b in texts if _overlap(b['_rect'],region)/max(1,_area(b['_rect']))>=.98]
                 if inside: region |= _union([b['_rect'] for b in inside])
                 assigned.update(b['_number'] for b in inside)
                 captions=[]
                 for b in texts:
                     if b['_number'] in assigned or not CAPTION.match(b['text']): continue
+                    if any(_overlap(b['_rect'], other) >= _area(b['_rect'])*.98 for j,other in enumerate(regions) if j != ri): continue
                     r=b['_rect']
                     gap=min(abs(r.y0-region.y1),abs(region.y0-r.y1))
                     horizontal=max(0,min(r.x1,region.x1)-max(r.x0,region.x0))
@@ -294,6 +312,8 @@ def parse_pdf(path, config=None):
             for b in texts:
                 if b['_number'] in assigned: continue
                 text=b['text']
+                if any(line.get('dir',(1,0)) != (1,0) for line in b['_raw'].get('lines',[])):
+                    _issue(issues,num,'Vertical or rotated text outside a preserved asset requires review.')
                 if CAPTION.match(text):
                     _issue(issues,num,'Caption has no confidently associated image/table region.')
                 if re.search(r'\b(?:page|pp?\.)\s+\d+|第\s*\d+\s*页',text,re.I):
@@ -317,7 +337,9 @@ def parse_pdf(path, config=None):
                     item['_footnoteMarker']=re.match(r'^(\d+)\s',text).group(1)
                 items.append(item)
             # Short, aligned cell-like lines outside recognized assets are unsafe unruled tables.
-            candidates=[b for b in texts if b['_number'] not in assigned and len(b['text'])<45]
+            candidates=[b for b in items if b['type']=='body' and len(b['text'])<45
+                        and not any(MATH_FONT.search(s.get('font','')) for s in b.get('_spans',[]))
+                        and not re.fullmatch(r'\s*\(\d+[a-z]?\)\s*',b['text'])]
             for b in candidates:
                 peers=[c for c in candidates if abs(c['_rect'].y0-b['_rect'].y0)<3]
                 if len(peers)>=3:
@@ -348,6 +370,9 @@ def parse_pdf(path, config=None):
             ordered=[entry for item in ordered if id(item) not in linked_notes
                      for entry in [item]+notes_by_anchor.get(id(item),[])]
             for item in ordered:
+                if in_references and item.get('type') == 'heading' and _appendix_heading(item.get('text','')):
+                    in_references=False
+                    item['evidence'].append('post-reference appendix/supplement heading')
                 if item['type']=='reference': in_references=True
                 if in_references and item['type']!='asset':
                     item['type']='reference'

@@ -1,7 +1,7 @@
 {
-  "name": "dsh-pdf-paper-translation-tools",
-  "version": "0.1.1",
-  "description": "Conservative PDF paper extraction, agent translation validation and PDF reflow for DeepSeek Harness",
+  "name": "dsh-paper-translator",
+  "version": "0.2.0",
+  "description": "HTML paper translation with preserved formulas, offline HTML export and resumable jobs for DeepSeek Harness",
   "type": "module",
   "main": "lib/index.js",
   "files": [
@@ -51,11 +51,11 @@
   "license": "AGPL-3.0-or-later",
   "repository": {
     "type": "git",
-    "url": "https://github.com/ToughianGuyou/dsh-pdf-paper-translation-tools.git"
+    "url": "git+https://github.com/ToughianGuyou/dsh-paper-translator.git"
   },
-  "homepage": "https://github.com/ToughianGuyou/dsh-pdf-paper-translation-tools#readme",
+  "homepage": "https://github.com/ToughianGuyou/dsh-paper-translator#readme",
   "bugs": {
-    "url": "https://github.com/ToughianGuyou/dsh-pdf-paper-translation-tools/issues"
+    "url": "https://github.com/ToughianGuyou/dsh-paper-translator/issues"
   },
   "keywords": [
     "dsh",

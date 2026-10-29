@@ -9,3 +9,5 @@ PyMuPDF 1.26.6 / MuPDF are provided separately by their vendors under AGPL or co
 - Harness/Cordis/Schemastery dependencies are resolved from the installation; they retain their own package licenses.
 
 No external model, OCR executable, translation API client, cloud upload service or API credential is included in this plugin.
+
+- Beautiful Soup 4 (MIT) parses HTML; FontTools (MIT) supports experimental PDF font inspection. These Python dependencies are installed separately, not bundled as wheels.

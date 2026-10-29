@@ -1,8 +1,8 @@
 {
   "format": 1,
   "title": {
-    "en": "PDF Paper Translation Tools",
-    "zh": "PDF 论文翻译工具"
+    "en": "DSH Paper Translator",
+    "zh": "DSH 论文翻译"
   },
   "description": {
     "en": "Community DSH plugins maintained by ToughianGuyou",
@@ -10,38 +10,21 @@
   },
   "plugins": [
     {
-      "name": "dsh-pdf-paper-translation-tools",
+      "name": "dsh-paper-translator",
       "title": {
-        "en": "PDF Paper Translation Tools",
-        "zh": "PDF 论文翻译工具"
+        "en": "DSH Paper Translator",
+        "zh": "DSH 论文翻译"
       },
       "description": {
-        "en": "Translate text-layer papers with the current Harness agent; preserve figures, captions and formulas. Python and PyMuPDF required; no OCR.",
-        "zh": "使用当前 Harness agent 翻译文字层论文，保留图表、图注及公式。需要 Python 和 PyMuPDF，不支持 OCR。"
+        "en": "Translate HTML papers with preserved MathML/SVG formulas and resumable jobs. Python required.",
+        "zh": "翻译论文 HTML，保留 MathML/SVG 公式，支持断点继续和离线 HTML 输出。需要 Python。"
       },
       "author": "ToughianGuyou",
-      "homepage": "https://github.com/ToughianGuyou/dsh-pdf-paper-translation-tools#readme",
+      "homepage": "https://github.com/ToughianGuyou/dsh-paper-translator#readme",
       "repository": {
-        "url": "https://github.com/ToughianGuyou/dsh-pdf-paper-translation-tools"
+        "url": "https://github.com/ToughianGuyou/dsh-paper-translator"
       },
-      "versions": [
-        {
-          "version": "0.1.1",
-          "publishTimestamp": 1793259315,
-          "source": {
-            "type": "npm",
-            "registry": "https://registry.npmjs.org"
-          }
-        },
-        {
-          "version": "0.1.0",
-          "publishTimestamp": 1793199176,
-          "source": {
-            "type": "npm",
-            "registry": "https://registry.npmjs.org"
-          }
-        }
-      ]
+      "versions": []
     }
   ]
 }

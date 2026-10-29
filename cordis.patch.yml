@@ -1,5 +1,5 @@
 - insert:
-    - id: dsh-pdf-paper-translation-tools
-      name: dsh-pdf-paper-translation-tools
+    - id: dsh-paper-translator
+      name: dsh-paper-translator
       config:
         keepOriginalMarkdown: true

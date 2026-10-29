@@ -67,6 +67,11 @@ def check_source(job):
         unchanged = False
     if not unchanged:
         raise ValueError('STALE_VERSION: source changed or is unavailable; prepare a new job')
+    for resource in job.get('inputResources',[]):
+        if not Path(resource['path']).is_file() or digest(resource['path'])!=resource['sha256']:
+            raise ValueError('STALE_VERSION: HTML resource changed; prepare a new job')
+    if job.get('renderSourcePath') and digest(job['renderSourcePath'])!=job['renderSourceHash']:
+        raise ValueError('STALE_VERSION: prepared HTML resources changed')
 
 def summary(job):
     pending = [b['blockId'] for b in job['blocks'] if b['translate'] and b['blockId'] not in job['translations']]
@@ -78,13 +83,16 @@ def summary(job):
 
 def prepare(args, config, root):
     from .parser import parse_pdf
-    path = Path(args.get('path', '')).expanduser().resolve(strict=True)
+    is_html=args.get('_inputFormat')=='html'
+    remote=is_html and bool(args.get('url'))
+    if remote and args.get('path'):raise ValueError('INVALID_ARGUMENT: provide path or url, not both')
+    path = Path(args.get('path', '')).expanduser().resolve(strict=True) if not remote else None
     allowed = config.get('allowedInputDirectories') or [str(Path.cwd())]
-    if not any(path.is_relative_to(Path(x).expanduser().resolve()) for x in allowed):
+    if path and not any(path.is_relative_to(Path(x).expanduser().resolve()) for x in allowed):
         raise ValueError('PATH_NOT_ALLOWED: input is outside configured allowedInputDirectories')
-    if not path.is_file() or path.suffix.lower() != '.pdf':
-        raise ValueError('PDF_INVALID: input must be a PDF file')
-    if path.stat().st_size > config.get('maxFileBytes', 104857600):
+    if path and (not path.is_file() or path.suffix.lower() not in (('.html','.htm') if is_html else ('.pdf',))):
+        raise ValueError('INVALID_ARGUMENT: input must match the preparation tool format')
+    if path and path.stat().st_size > config.get('maxFileBytes', 104857600):
         raise ValueError('FILE_TOO_LARGE: configured PDF size limit exceeded')
     language = args.get('targetLanguage', '')
     if not isinstance(language, str) or not language.strip():
@@ -97,11 +105,17 @@ def prepare(args, config, root):
     job_id = uuid.uuid4().hex
     directory = root / job_id
     directory.mkdir(mode=0o700)
+    if remote:
+        from .html_input import snapshot_url
+        path=snapshot_url(args['url'],directory,config)
     job = dict(jobId=job_id, version=VERSION, state='PRECHECKING', sourcePath=str(path),
                sourceHash=digest(path), targetLanguage=language, createdAt=time.time(), blocks=[], translations={}, config=config)
     save(directory / 'job.json', job)
     try:
-        parsed = parse_pdf(str(path), config)
+        if is_html:
+            from .html_document import parse_html
+            parsed=parse_html(path,directory,config,args.get('url'))
+        else:parsed = parse_pdf(str(path), config)
         job.update(parsed)
         for order, block in enumerate(job['blocks']):
             block['order'] = order
@@ -125,10 +139,10 @@ def dispatch(request):
     if not isinstance(request, dict) or not isinstance(request.get('args', {}), dict) or not isinstance(request.get('config', {}), dict):
         raise ValueError('INVALID_ARGUMENT: request, args and config must be objects')
     tool, args, config = request.get('tool'), request.get('args', {}), request.get('config', {})
-    root = Path(config.get('workDirectory', './work/dsh-pdf-paper-translation-tools')).expanduser().resolve()
+    root = Path(config.get('workDirectory', './work/dsh-paper-translator')).expanduser().resolve()
     root.mkdir(parents=True, exist_ok=True, mode=0o700)
-    if tool == 'pdf_prepare':
-        return prepare(args, config, root)
+    if tool in {'pdf_prepare','html_prepare'}:
+        return prepare({**args,'_inputFormat':'html' if tool=='html_prepare' else 'pdf'}, config, root)
     if tool not in {'pdf_job_status','pdf_read_blocks','pdf_submit_translations','pdf_export'}:
         raise ValueError('INVALID_ARGUMENT: unknown tool')
     job_id = args.get('jobId', '')
@@ -155,6 +169,13 @@ def dispatch(request):
             next_cursor = batch[-1]['order'] + 1 if len(eligible) > len(batch) else None
             indices = {b['order'] for b in batch}
             contexts = [dict(b, readOnly=True) for b in job['blocks'] if b['order'] not in indices and any(abs(b['order'] - i) == 1 for i in indices) and b.get('text')]
+            if job.get('inputFormat')=='html':
+                # Formula source, rendering geometry and preserved bibliography
+                # stay on disk, rather than consuming translation context.
+                def lean(b):
+                    return {k:b[k] for k in ('blockId','type','text','order','sources','readOnly') if k in b} | {'protectedTokens':list(b.get('protected',{}))}
+                batch=[lean(b) for b in batch]
+                contexts=[lean(b) for b in contexts if b.get('translate')]
             return response(job=job, data={'blocks': batch, 'context': contexts, 'nextCursor': next_cursor})
         if tool == 'pdf_submit_translations':
             if args.get('version') != job['version']:
@@ -197,7 +218,7 @@ def dispatch(request):
 def export(job, directory):
     from .exporter import export_pdf
     config = job['config']
-    outroot = Path(config.get('outputDirectory', './output/dsh-pdf-paper-translation-tools')).expanduser().resolve()
+    outroot = Path(config.get('outputDirectory', './output/dsh-paper-translator')).expanduser().resolve()
     outroot.mkdir(parents=True, exist_ok=True)
     final = outroot / job['jobId']
     staging = outroot / ('.' + job['jobId'] + '-' + uuid.uuid4().hex)
@@ -205,19 +226,28 @@ def export(job, directory):
     job['state'] = 'EXPORTING'
     save(directory / 'job.json', job)
     try:
-        pdf = staging / 'translated.pdf'
-        report = export_pdf(job['sourcePath'], job['blocks'], job['translations'], job['targetLanguage'], str(pdf), config)
+        if job.get('inputFormat') == 'html':
+            from .html_document import export_html
+            output_name = 'translated.html'
+            report = export_html(job, staging / output_name)
+        else:
+            output_name = 'translated.pdf'
+            report = export_pdf(job['sourcePath'], job['blocks'], job['translations'], job['targetLanguage'], str(staging / output_name), config)
+        report.update(inputFormat=job.get('inputFormat','pdf'), inputSha256=job['sourceHash'])
         check_source(job)
-        if config.get('keepOriginalMarkdown', True):
+        if job.get('inputFormat') != 'html' and config.get('keepOriginalMarkdown', True):
             lines = ['# Original text', '']
             for b in job['blocks']:
                 text = b.get('text', '')
                 for token, item in b.get('protected', {}).items():
-                    if item.get('kind') != 'math':
+                    if job.get('inputFormat')=='html' and item.get('kind')=='math' and item.get('latex'):
+                        text=text.replace(token,('$'+item['latex']+'$') if item.get('markup')=='latex' else item['latex'])
+                    elif item.get('kind') != 'math':
                         text = text.replace(token, item.get('text', token))
-                lines.extend([f'<!-- {b["blockId"]}; source pages: {", ".join(str(s["page"]) for s in b["sources"])} -->', text or f'[Preserved {b["type"]}: {b["blockId"]}]', ''])
+                where=', '.join(str(s.get('page',s.get('anchor','HTML'))) for s in b['sources'])
+                lines.extend([f'<!-- {b["blockId"]}; source: {where} -->', b.get('markdown') or text or f'[Preserved {b["type"]}: {b["blockId"]}]', ''])
             (staging / 'original.md').write_text('\n'.join(lines), 'utf-8')
-        report['outputPath'] = str(final / 'translated.pdf')
+        report['outputPath'] = str(final / output_name)
         save(staging / 'validation.json', report)
         if final.exists():
             raise ValueError('OUTPUT_EXISTS: refusing to replace prior output')

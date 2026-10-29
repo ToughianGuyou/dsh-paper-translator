@@ -9,6 +9,7 @@ import tempfile
 import unicodedata
 
 import fitz
+from .regions import visible_image_rects
 
 # Basic CJK kinsoku constraints. These apply at automatic wraps, not explicit newlines.
 NO_LINE_START = frozenset("，。、；：！？）》】〕〉」』”’％‰…,.!?;:)]}")
@@ -41,7 +42,13 @@ def _digest(path):
 
 
 def _clean_region(source, item):
-    """Remove off-region text, image pixels and wholly outside vectors before reuse."""
+    """Remove off-region text and wholly outside image objects/vectors.
+
+    Intersecting image objects remain byte-preserved: redacting their pixels can
+    resample clipped images and visibly alter the resource. Their original image
+    object may retain pixels outside the displayed clip; no outside searchable
+    page text is retained. The final page placement clips rendering to ``rect``.
+    """
     index = int(item["page"]) - 1
     page = source[index]
     if page.rotation:
@@ -61,6 +68,20 @@ def _clean_region(source, item):
     clean = fitz.open()
     clean.insert_pdf(source, from_page=index, to_page=index, links=False, annots=False)
     cp = clean[0]
+    # Native image rectangles may include pixels cropped by a PDF clipping path.
+    # Delete only image xrefs whose *every occurrence* is wholly outside. Shared
+    # xrefs with one visible occurrence must remain intact.
+    image_info = cp.get_image_info(xrefs=True)
+    visible_images = visible_image_rects(cp, include_empty=True)
+    if len(image_info) != len(visible_images):
+        clean.close()
+        fail("OUTPUT_VALIDATION_FAILED", "Image occurrence accounting changed during sanitization.")
+    keep_xrefs = {image['xref'] for image, visible in zip(image_info, visible_images)
+                  if image.get('xref') and not (visible & rect).is_empty}
+    remove_xrefs = {image['xref'] for image in image_info
+                    if image.get('xref') and image['xref'] not in keep_xrefs}
+    for xref in remove_xrefs:
+        cp.delete_image(xref)
     bounds = cp.rect
     outside = [fitz.Rect(bounds.x0, bounds.y0, bounds.x1, rect.y0),
                fitz.Rect(bounds.x0, rect.y1, bounds.x1, bounds.y1),
@@ -69,15 +90,34 @@ def _clean_region(source, item):
     for r in outside:
         if not r.is_empty:
             cp.add_redact_annot(r, fill=False, cross_out=False)
-    cp.apply_redactions(images=2, graphics=1, text=0)
+    cp.apply_redactions(images=0, graphics=1, text=0)
     # Round-trip drops unreachable original streams and resources.
     sanitized = fitz.open(stream=clean.tobytes(garbage=4, deflate=True), filetype="pdf")
     clean.close()
     a = page.get_pixmap(matrix=fitz.Matrix(2, 2), clip=rect, alpha=False)
     b = sanitized[0].get_pixmap(matrix=fitz.Matrix(2, 2), clip=rect, alpha=False)
-    if a.width != b.width or a.height != b.height or a.samples != b.samples:
+    if a.width != b.width or a.height != b.height:
         sanitized.close()
         fail("OUTPUT_VALIDATION_FAILED", f"Sanitization changed the asset appearance on page {index + 1}.")
+    difference = [abs(x - y) for x, y in zip(a.samples, b.samples)]
+    maximum_error = max(difference, default=0)
+    mean_error = sum(difference) / max(1, len(difference) * 255)
+    changed_fraction = sum(value != 0 for value in difference) / max(1, len(difference))
+    exact = maximum_error == 0
+    # PDF redaction can rewrite retained glyph streams with subpixel rounding.
+    # Only extremely sparse, <=3/255 channel changes qualify as antialias noise;
+    # missing strokes, objects, image resampling and broader changes still fail.
+    if not exact and not (maximum_error <= 3 and mean_error <= 1e-6 and changed_fraction <= 1e-4):
+        sanitized.close()
+        fail("OUTPUT_VALIDATION_FAILED", f"Sanitization changed the asset appearance on page {index + 1}.")
+    sanitized._paper_sanitization = {
+        "appearance": "exact" if exact else "bounded-antialias",
+        "maximumChannelDifference": maximum_error,
+        "meanAbsoluteChannelDifference": mean_error,
+        "changedChannelFraction": changed_fraction,
+        "removedOutsideImageObjects": len(remove_xrefs),
+        "intersectingImagePixels": "original object preserved; displayed region clipped",
+    }
     for block in sanitized[0].get_text("dict")["blocks"]:
         if block.get("type") == 0 and not (fitz.Rect(block["bbox"]) & rect):
             sanitized.close()
@@ -134,7 +174,8 @@ def export_pdf(source_path, blocks, translations, target_language, destination, 
         target = fitz.Rect(x, y, x + rect.width, y + rect.height)
         current.show_pdf_page(target, sanitized, 0, clip=rect, keep_proportion=True)
         placed.append({"blockId": block_id, "sourcePage": item["page"], "sourceBbox": list(rect),
-                       "outputPage": current.number + 1, "outputBbox": list(target), "kind": "asset"})
+                       "outputPage": current.number + 1, "outputBbox": list(target), "kind": "asset",
+                       "sanitization": sanitized._paper_sanitization})
         y += rect.height + 12
 
     def add_text(text, block):
@@ -194,7 +235,8 @@ def export_pdf(source_path, blocks, translations, target_language, destination, 
                     target = fitz.Rect(x, top, x + atom["width"], top + atom["height"])
                     current.show_pdf_page(target, atom["math"], 0, clip=atom["rect"], keep_proportion=True)
                     placed.append({"blockId": block["blockId"], "kind": "inlineMath", "sourcePage": atom["source"]["page"],
-                                   "sourceBbox": list(atom["rect"]), "outputPage": current.number + 1, "outputBbox": list(target)})
+                                   "sourceBbox": list(atom["rect"]), "outputPage": current.number + 1, "outputBbox": list(target),
+                                   "sanitization": atom["math"]._paper_sanitization})
                     x += atom["width"]; run_x = x
                 else:
                     if not run: run_x = x
@@ -259,7 +301,7 @@ def export_pdf(source_path, blocks, translations, target_language, destination, 
             fail("OUTPUT_VALIDATION_FAILED", "No content to export.")
         for page in output:
             page.insert_text((margin, page.rect.height - 22), str(page.number + 1), fontsize=9, fontname="helv")
-        output.set_metadata({"title": source.metadata.get("title", "") or "Translated paper", "producer": "dsh-pdf-paper-translation-tools"})
+        output.set_metadata({"title": source.metadata.get("title", "") or "Translated paper", "producer": "dsh-paper-translator"})
         destination.parent.mkdir(parents=True, exist_ok=True)
         fd, temp = tempfile.mkstemp(prefix=".paper-export-", suffix=".pdf", dir=destination.parent)
         os.close(fd)
@@ -302,7 +344,10 @@ def export_pdf(source_path, blocks, translations, target_language, destination, 
         os.unlink(temp); temp = None
         return {"outputPath": str(destination), "pages": len(output), "textBlocks": text_count,
                 "assets": placed, "sourceSha256": digest_before, "warnings": warnings,
-                "validation": {"reopened": True, "allPagesRendered": True, "assetAppearanceBeforePlacement": "exact", "physicalSizePreserved": True, "assetAppearanceAfterPlacement": "mean absolute channel difference <= 0.005"}}
+                "validation": {"reopened": True, "allPagesRendered": True,
+                               "assetAppearanceBeforePlacement": "exact" if all(p["sanitization"]["appearance"] == "exact" for p in placed) else "bounded-antialias",
+                               "sanitizationAntialiasLimits": {"maximumChannelDifference": 3, "meanAbsoluteChannelDifference": 1e-6, "changedChannelFraction": 1e-4},
+                               "physicalSizePreserved": True, "assetAppearanceAfterPlacement": "mean absolute channel difference <= 0.005"}}
     finally:
         for asset in assets: asset.close()
         output.close(); source.close()

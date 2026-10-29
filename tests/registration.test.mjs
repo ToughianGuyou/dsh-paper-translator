@@ -1,7 +1,7 @@
 /** Offline SDK integration, not a model-backed Harness session. */
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp, rm, access } from 'node:fs/promises'
+import { mkdtemp, rm, access, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
@@ -21,10 +21,10 @@ function registry(config) {
 }
 const exec = { signal: new AbortController().signal }
 
-test('SDK registry exposes exactly five tools and validates arguments before launching worker', async () => {
+test('SDK registry exposes PDF and HTML preparation plus shared job tools', async () => {
   const tools = registry({ pythonExecutable: '/does/not/exist/python' })
   assert.deepEqual(tools.schemas().map(s => s.name), [
-    'pdf_prepare', 'pdf_read_blocks', 'pdf_submit_translations', 'pdf_export', 'pdf_job_status',
+    'html_prepare', 'pdf_prepare', 'pdf_read_blocks', 'pdf_submit_translations', 'pdf_export', 'pdf_job_status',
   ])
   await assert.rejects(tools.get('pdf_prepare').execute({ path: 'paper.pdf' }, exec), ToolArgsError)
   await assert.rejects(tools.get('pdf_submit_translations').execute({
@@ -33,6 +33,25 @@ test('SDK registry exposes exactly five tools and validates arguments before lau
   const result = await tools.get('pdf_job_status').execute({ jobId: 'test' }, exec)
   assert.equal(result.code, 'DEPENDENCY_MISSING')
   assert.deepEqual(validateJsonSchemaValue(tools.get('pdf_job_status').output.schema, result), [])
+})
+
+test('HTML job preserves formulas and exports HTML through the actual SDK', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'html-registration-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const path = join(directory, 'paper.html')
+  await writeFile(path, '<article><h1>HTML study</h1><p>We use <math alttext="x_t^2"><mi>x</mi></math> here.</p></article>')
+  const tools = registry({ allowedInputDirectories: [directory], workDirectory: join(directory,'work'), outputDirectory: join(directory,'out') })
+  const call = async (name,args) => {
+    const result = await tools.get(name).execute(args,exec)
+    assert.equal(result.ok,true,JSON.stringify(result)); return result
+  }
+  const prepared = await call('html_prepare',{path,targetLanguage:'en'})
+  const jobId = prepared.jobId
+  const batch = await call('pdf_read_blocks',{jobId})
+  assert.ok(!JSON.stringify(batch.data).includes('alttext'))
+  await call('pdf_submit_translations',{jobId,version:prepared.data.version,translations:batch.data.blocks.map(b=>({blockId:b.blockId,text:b.text}))})
+  const exported = await call('pdf_export',{jobId})
+  await access(exported.data.outputs['translated.html'])
 })
 
 test('registered SDK tools perform prepare/read/submit/export/status with persisted worker state', async t => {
