@@ -29,9 +29,8 @@
           "version": "0.1.0",
           "publishTimestamp": 1793199176,
           "source": {
-            "type": "git",
-            "url": "https://github.com/ToughianGuyou/dsh-pdf-paper-translation-tools",
-            "commit": "766a303bb2ceff14e118270490f8028dc5c3e560"
+            "type": "npm",
+            "registry": "https://registry.npmjs.org"
           }
         }
       ]
