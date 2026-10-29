@@ -2,11 +2,11 @@
 
 为 DeepSeek Harness 提供 PDF 论文预检、分块读取、译文校验与重新排版。翻译由 Harness 当前 agent 完成；插件不调用额外翻译 API，也不需要新的 API Key。输入 PDF 始终保留。
 
-当前为 `0.1.0` 首版，解析有明确的支持边界。已有合成 PDF、SDK 工具闭环及 GitHub CI 验证；尚未完成完整真实论文与真实模型会话验收。请阅读 [测试报告](./TEST_REPORT.md)，不要将离线测试等同于所有论文或所有 Desktop / Web 版本的兼容性保证。
+当前兼容修订版为 `0.1.1`，解析有明确的支持边界。已有合成 PDF、SDK 工具闭环及 GitHub CI 验证；尚未完成完整真实论文与真实模型会话验收。请阅读 [测试报告](./TEST_REPORT.md)，不要将离线测试等同于所有论文或所有 Desktop / Web 版本的兼容性保证。
 
 ## 安装
 
-支持在 **DSH Desktop 客户端**或**DSH Web 服务端**安装。插件已发布到 [npm 官方源](https://www.npmjs.com/package/dsh-pdf-paper-translation-tools)，当前正式版为 `0.1.0`。
+支持在 **DSH Desktop 客户端**或**DSH Web 服务端**安装。插件已发布到 [npm 官方源](https://www.npmjs.com/package/dsh-pdf-paper-translation-tools)，npm 当前版本为 `0.1.0`；GitHub `0.1.1` 为 Desktop `0.2.1-rc.3` 提供兼容修订，npm 尚待发布。
 
 安装分为两部分：**安装 npm 插件 → 配置 Python 环境和论文目录**。npm 包包含构建好的 `lib/`，正常使用不需要克隆源码、编译或执行 `npm publish`；npm 安装不会自动安装 Python 或 PyMuPDF。
 
@@ -14,10 +14,18 @@
 
 - Python 3.10+，并在插件使用的 Python 环境中安装 `PyMuPDF==1.26.6`。
 - Node.js 22.13+（独立 CLI 环境）；Desktop 使用其随附运行环境，仍需单独提供 Python。
-- 已配置模型、可使用工具的 DeepSeek Harness。接口基于 `@deepseek-ai/dsh-tools@0.2.2-alpha.2`；实际兼容性由安装时的 peer 依赖检查和加载结果确定。
+- 已配置模型、可使用工具的 DeepSeek Harness。`0.1.1` 的 SDK 闭环已针对 `0.2.1-rc.3` 和 `0.2.2-alpha.2` 验证；具体 Desktop 的完整模型翻译仍需本机验收。旧插件 `0.1.0` 的依赖范围不包含 `0.2.1-rc.3`，请勿强制绕过版本检查。
 - 本插件提供五个 agent 工具，没有独立的翻译设置页面、PDF 上传页面或 OCR 功能。
 
-### Desktop 客户端：从 npm 安装
+### Desktop 客户端：安装兼容版本
+
+**使用 Desktop `0.2.1-rc.3`：** 请先从 [GitHub Releases](https://github.com/ToughianGuyou/dsh-pdf-paper-translation-tools/releases/tag/v0.1.1) 下载 `dsh-pdf-paper-translation-tools-0.1.1.tgz`，在“添加插件”的“包名或地址”中使用该安装包路径。若使用 CLI：
+
+```powershell
+dsh plugin --profile desktop add ./dsh-pdf-paper-translation-tools-0.1.1.tgz
+```
+
+下面的 npm `0.1.0` 安装方式适用于满足其依赖范围的较新宿主；待 npm 发布 `0.1.1` 后，`0.2.1-rc.3` 才可从 npm 安装对应兼容版。
 
 1. 打开 DSH Desktop，进入侧边栏的 **插件**，点击 **添加插件**。
 2. 在“包名或地址”输入：

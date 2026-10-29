@@ -10,7 +10,39 @@ concurrency:
   group: release
   cancel-in-progress: false
 jobs:
+  compatibility:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - sdk: 0.2.1-rc.3
+            cordis: ~4.0.5
+          - sdk: 0.2.2-alpha.2
+            cordis: ~4.0.6-alpha.1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install exact target SDK cohort
+        env:
+          SDK_VERSION: ${{ matrix.sdk }}
+          CORDIS_VERSION: ${{ matrix.cordis }}
+        run: |
+          npm pkg set "devDependencies.@deepseek-ai/dsh-tools=$SDK_VERSION" "devDependencies.@deepseek-ai/cordis=$CORDIS_VERSION"
+          rm package-lock.json
+          npm install --ignore-scripts
+          node --input-type=module -e "import {createRequire} from 'node:module'; const r=createRequire(import.meta.url); if(r('@deepseek-ai/dsh-tools/package.json').version!==process.env.SDK_VERSION) throw new Error('Wrong test SDK')"
+      - run: python -m pip install -r python/requirements.txt
+      - run: npm run build && npm run typecheck && npm test && npm run test:python
   release:
+    needs: compatibility
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

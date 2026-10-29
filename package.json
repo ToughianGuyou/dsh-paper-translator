@@ -1,6 +1,6 @@
 {
   "name": "dsh-pdf-paper-translation-tools",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Conservative PDF paper extraction, agent translation validation and PDF reflow for DeepSeek Harness",
   "type": "module",
   "main": "lib/index.js",
@@ -37,14 +37,14 @@
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "*",
-    "@deepseek-ai/dsh-tools": "^0.2.2-alpha.2"
+    "@deepseek-ai/dsh-tools": "^0.2.1-rc.3 || ^0.2.2-alpha.2"
   },
   "dependencies": {
     "@deepseek-ai/schemastery": "*"
   },
   "devDependencies": {
-    "@deepseek-ai/cordis": "*",
-    "@deepseek-ai/dsh-tools": "0.2.2-alpha.2",
+    "@deepseek-ai/cordis": "~4.0.5",
+    "@deepseek-ai/dsh-tools": "0.2.1-rc.3",
     "@types/node": "^22.0.0",
     "typescript": "~5.9.3"
   },

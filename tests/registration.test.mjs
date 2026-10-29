@@ -5,7 +5,10 @@ import { mkdtemp, rm, access } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
-import { ToolsService, ToolArgsError, validateJsonSchemaValue } from '@deepseek-ai/dsh-tools'
+import * as toolsSdk from '@deepseek-ai/dsh-tools'
+const { ToolArgsError, validateJsonSchemaValue } = toolsSdk
+// The SDK renamed its registry export after 0.2.1-rc.3.
+const ToolsService = toolsSdk.ToolsService ?? toolsSdk.ToolRuntime
 import { apply, Config } from '../lib/index.js'
 
 function registry(config) {

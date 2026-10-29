@@ -1,3 +1,15 @@
+# 0.1.1 兼容性补充（2026-10-29）
+
+- 目标：支持用户的 DSH Desktop 0.2.1-rc.3；原 0.1.0 的 peer 范围错误地排除了它。
+- 开发依赖切换为 dsh-tools 0.2.1-rc.3 和其要求的 Cordis ~4.0.5；peer 范围声明 ^0.2.1-rc.3 || ^0.2.2-alpha.2。
+- 原 SDK 将注册器导出为 ToolRuntime，新 SDK 导出为 ToolsService；仅测试适配该命名差异，生产入口使用的 defineTool / ctx.tools.register 无需修改。
+- 0.2.1-rc.3 隔离环境：构建、类型检查、10 项 Node 测试和 21 项 Python 测试通过。使用真实目标 SDK 注册五工具并执行完整离线闭环。
+- GitHub CI 增加 0.2.1-rc.3 / 0.2.2-alpha.2 两组 SDK 验证，发布任务须等两组成功。
+- 测试运行在 Linux，尚未验证用户 Windows Desktop 安装、实际模型会话或完整真实论文；不能将 SDK 测试等同于客户端完整验收。
+- GitHub Release 提供 0.1.1 安装包；npm 0.1.1 需要维护者另行发布，不能用 README 或市场索引修改替代 npm 发版。
+
+---
+
 # 验证报告
 
 验证日期：2026-10-28。版本：0.1.0；解析器版本：1.0.1。
