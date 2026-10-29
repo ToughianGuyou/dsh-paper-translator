@@ -6,7 +6,7 @@
 
 ## 安装
 
-支持在 **DSH Desktop 客户端**或**DSH Web 服务端**安装。插件已发布到 [npm 官方源](https://www.npmjs.com/package/dsh-pdf-paper-translation-tools)，npm 当前版本为 `0.1.0`；GitHub `0.1.1` 为 Desktop `0.2.1-rc.3` 提供兼容修订，npm 尚待发布。
+支持在 **DSH Desktop 客户端**或**DSH Web 服务端**安装。插件已发布到 [npm 官方源](https://www.npmjs.com/package/dsh-pdf-paper-translation-tools)，当前正式版为 `0.1.1`，包含 Desktop `0.2.1-rc.3` 的兼容修订。
 
 安装分为两部分：**安装 npm 插件 → 配置 Python 环境和论文目录**。npm 包包含构建好的 `lib/`，正常使用不需要克隆源码、编译或执行 `npm publish`；npm 安装不会自动安装 Python 或 PyMuPDF。
 
@@ -19,13 +19,7 @@
 
 ### Desktop 客户端：安装兼容版本
 
-**使用 Desktop `0.2.1-rc.3`：** 请先从 [GitHub Releases](https://github.com/ToughianGuyou/dsh-pdf-paper-translation-tools/releases/tag/v0.1.1) 下载 `dsh-pdf-paper-translation-tools-0.1.1.tgz`，在“添加插件”的“包名或地址”中使用该安装包路径。若使用 CLI：
-
-```powershell
-dsh plugin --profile desktop add ./dsh-pdf-paper-translation-tools-0.1.1.tgz
-```
-
-下面的 npm `0.1.0` 安装方式适用于满足其依赖范围的较新宿主；待 npm 发布 `0.1.1` 后，`0.2.1-rc.3` 才可从 npm 安装对应兼容版。
+Desktop `0.2.1-rc.3` 请安装 **`0.1.1` 或后续兼容版本**。npm 包和 GitHub Release 均已提供 `0.1.1`。
 
 1. 打开 DSH Desktop，进入侧边栏的 **插件**，点击 **添加插件**。
 2. 在“包名或地址”输入：
@@ -41,7 +35,7 @@ dsh plugin --profile desktop add ./dsh-pdf-paper-translation-tools-0.1.1.tgz
 有可用的 `dsh` 命令时，也可在终端安装到 Desktop 的 profile：
 
 ```powershell
-dsh plugin --profile desktop add dsh-pdf-paper-translation-tools@0.1.0 --registry=https://registry.npmjs.org
+dsh plugin --profile desktop add dsh-pdf-paper-translation-tools@0.1.1 --registry=https://registry.npmjs.org
 ```
 
 终端找不到 `dsh` 时，使用上面的客户端安装入口即可。不要为了安装本插件另外创建 `papers` profile，然后误以为它已安装到 Desktop；插件属于所安装的 profile。
@@ -51,7 +45,7 @@ dsh plugin --profile desktop add dsh-pdf-paper-translation-tools@0.1.0 --registr
 在 **运行 DSH Web 的机器**上打开终端，执行：
 
 ```bash
-dsh plugin --profile web add dsh-pdf-paper-translation-tools@0.1.0 --registry=https://registry.npmjs.org
+dsh plugin --profile web add dsh-pdf-paper-translation-tools@0.1.1 --registry=https://registry.npmjs.org
 ```
 
 完成“首次配置”后，重启原来的 Web 服务。使用标准 `web` profile 的实例通常以以下命令启动：
@@ -146,12 +140,12 @@ Linux / macOS 或远程 Web 请替换为相应的服务端路径。agent 应遵�
 https://raw.githubusercontent.com/ToughianGuyou/dsh-pdf-paper-translation-tools/main/market/index.json
 ```
 
-刷新后搜索 `dsh-pdf-paper-translation-tools`。当前索引使用 **npm 官方源的 0.1.0**，是本项目维护的第三方索引，不代表官方审核或内置收录；直接从 npm 添加插件无需添加索引。
+刷新后搜索 `dsh-pdf-paper-translation-tools`。当前索引使用 **npm 官方源的 0.1.1**，是本项目维护的第三方索引，不代表官方审核或内置收录；直接从 npm 添加插件无需添加索引。
 
 **安装包：** 在 [Releases](https://github.com/ToughianGuyou/dsh-pdf-paper-translation-tools/releases) 下载 `.tgz`，在对应宿主机器上执行（Desktop 将 `web` 换为 `desktop`）：
 
 ```bash
-dsh plugin --profile web add ./dsh-pdf-paper-translation-tools-0.1.0.tgz
+dsh plugin --profile web add ./dsh-pdf-paper-translation-tools-0.1.1.tgz
 ```
 
 这只能省去插件包的 npm 下载；Python 依赖仍需准备，并完成同样的首次配置。
@@ -216,7 +210,7 @@ python3 -m unittest discover -s tests -p 'test_*.py'
 npm pack
 ```
 
-`build` 只移除 TypeScript 类型，`typecheck` 独立执行类型检查。`npm pack` 产出带构建结果的 `.tgz`，可用 `dsh plugin --profile papers add ./dsh-pdf-paper-translation-tools-0.1.0.tgz` 安装。测试样本采用人工合成文本和图形，测试结果与未完成验收项见 `TEST_REPORT.md`。
+`build` 只移除 TypeScript 类型，`typecheck` 独立执行类型检查。`npm pack` 产出带构建结果的 `.tgz`，可用 `dsh plugin --profile papers add ./dsh-pdf-paper-translation-tools-0.1.1.tgz` 安装。测试样本采用人工合成文本和图形，测试结果与未完成验收项见 `TEST_REPORT.md`。
 
 ## 依赖与许可
 
