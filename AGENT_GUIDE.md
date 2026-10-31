@@ -12,3 +12,5 @@
 远程源需核对版本和完整性。本地依赖资源放在 HTML 同目录或子目录；遇到脚本型公式或不支持的资源结构先报告，不自行执行源网页脚本。
 
 保留的 pdf_prepare 是旧的实验性 PDF 工作流：使用同组 read/submit/status/export 工具，输出 PDF。其复杂公式识别尚有未解决问题，不是本版推荐主流程。PDF 的保留图注/表内文字不送翻译，与 HTML 任务的待译范围不同。
+
+环境错误：若返回 DEPENDENCY_MISSING，向用户展示实际 Python 路径、缺少包和 installCommand。不能向其他解释器随意安装依赖或绕过错误；执行安装需有用户授权。启动失败时核对配置 ID 为 dsh-paper-translator，旧 ID 不会应用于新包。

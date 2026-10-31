@@ -6,13 +6,17 @@ import sys
 
 def main():
     try:
-        from paper_translation.jobs import dispatch
         raw = sys.stdin.buffer.read(8 * 1024 * 1024 + 1)
         if len(raw) > 8 * 1024 * 1024:
             raise ValueError('INVALID_ARGUMENT: request exceeds 8 MiB')
         request = json.loads(raw)
         with redirect_stdout(sys.stderr):
-            result = dispatch(request)
+            from paper_translation.environment import check_environment
+            config = request.get('config', {}) if isinstance(request, dict) else {}
+            result = check_environment(config) if isinstance(config, dict) else None
+            if result is None:
+                from paper_translation.jobs import dispatch
+                result = dispatch(request)
     except ModuleNotFoundError as exc:
         result = {'ok': False, 'code': 'DEPENDENCY_MISSING', 'message': str(exc), 'pages': [], 'retryable': False, 'nextAction': 'install_dependencies', 'data': {}}
     except Exception as exc:

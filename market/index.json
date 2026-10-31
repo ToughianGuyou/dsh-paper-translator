@@ -24,7 +24,16 @@
       "repository": {
         "url": "https://github.com/ToughianGuyou/dsh-paper-translator"
       },
-      "versions": []
+      "versions": [
+        {
+          "version": "0.2.0",
+          "publishTimestamp": 1793448924,
+          "source": {
+            "type": "npm",
+            "registry": "https://registry.npmjs.org"
+          }
+        }
+      ]
     }
   ]
 }

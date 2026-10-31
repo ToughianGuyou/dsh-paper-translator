@@ -16,6 +16,9 @@ async function executable(t, body) {
 test('missing executable is a structured dependency error', async () => {
   const r = await runWorker('pdf_job_status', {}, { ...defaults, pythonExecutable: '/does/not/exist/python' })
   assert.equal(r.code, 'DEPENDENCY_MISSING')
+  assert.equal(r.data.configuredPythonExecutable, '/does/not/exist/python')
+  assert.match(r.message, /id: dsh-paper-translator/)
+  assert.match(r.message, /WindowsApps/)
 })
 test('already cancelled launches no worker', async () => {
   const controller = new AbortController(); controller.abort()
@@ -53,4 +56,13 @@ test('abort during worker execution cancels the process', async t => {
 test('oversized requests rejected before spawn', async () => {
   const r = await runWorker('pdf_submit_translations', { text: 'x'.repeat(10000) }, defaults)
   assert.equal(r.code, 'REQUEST_TOO_LARGE')
+})
+
+test('nonworking interpreter identifies the configured path and configuration migration', async t => {
+  const exe = await executable(t, 'import sys; sys.exit(9009)')
+  const r = await runWorker('html_prepare', {}, { ...defaults, pythonExecutable: exe })
+  assert.equal(r.code, 'WORKER_FAILED')
+  assert.equal(r.data.configuredPythonExecutable, exe)
+  assert.equal(r.data.expectedPluginId, 'dsh-paper-translator')
+  assert.match(r.message, /cordis.patch.yml/)
 })

@@ -1,3 +1,5 @@
+# Migrating from the old package: change the old id to dsh-paper-translator.
+# Set pythonExecutable to a real interpreter; install python/requirements.txt in that interpreter.
 # Local-source overlay example: replace the entry path and all filesystem paths.
 # Relative config paths resolve against the Harness process working directory.
 - insert:

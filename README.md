@@ -2,7 +2,7 @@
 
 在 DeepSeek Harness 中翻译论文 HTML，输出可以离线打开的译文 HTML。保留原有 MathML / SVG 公式、图片、链接与页面结构，由 Harness 当前模型完成文字翻译。
 
-npm 包名：`dsh-paper-translator`。当前版本：**0.2.0**。
+npm 包名：`dsh-paper-translator`。当前版本：**0.2.1**。
 
 ## 功能
 
@@ -18,6 +18,18 @@ npm 包名：`dsh-paper-translator`。当前版本：**0.2.0**。
 
 支持 DSH Desktop 客户端与 DSH Web 服务端。npm 安装不会自动安装 Python 依赖；插件没有独立上传或翻译设置页面。
 
+### 从旧插件迁移（重要）
+
+旧包 `dsh-pdf-paper-translation-tools` 与新包 `dsh-paper-translator` 是不同插件，不会自动迁移配置。
+
+1. 安装新包后，禁用旧插件，避免重复注册同名工具。
+2. 找到实际 profile 的 `cordis.patch.yml`。标准 Windows Desktop 通常位于 `C:\Users\<用户名>\.dsh\profiles\desktop\cordis.patch.yml`；自定义数据目录以实际实例为准。
+3. 将旧配置条目的 `- id: dsh-pdf-paper-translation-tools` 改为 `- id: dsh-paper-translator`，保留其下已有的 `config`、论文、工作和输出目录。如果已存在新 ID 条目，合并到一条，避免重复。
+4. 核对 `pythonExecutable` 是可运行的真实解释器绝对路径，并在**同一个解释器**中安装下方三个依赖。只有旧 ID 的配置不会应用于新插件，新插件会使用默认值。
+5. 完整退出 Desktop（包括托盘）再重新打开；Web 重启实际服务。
+
+配置中的 ID 必须是 `dsh-paper-translator`，不是包版本，也不是旧包名。
+
 ### Desktop 客户端
 
 1. 打开侧边栏“插件”，选择“添加插件”。
@@ -27,7 +39,7 @@ npm 包名：`dsh-paper-translator`。当前版本：**0.2.0**。
 如果有 `dsh` 命令，也可执行：
 
 ```powershell
-dsh plugin --profile desktop add dsh-paper-translator@0.2.0 --registry=https://registry.npmjs.org
+dsh plugin --profile desktop add dsh-paper-translator@0.2.1 --registry=https://registry.npmjs.org
 ```
 
 ### Web 端
@@ -35,7 +47,7 @@ dsh plugin --profile desktop add dsh-paper-translator@0.2.0 --registry=https://r
 在实际运行 DSH Web 的机器上执行：
 
 ```bash
-dsh plugin --profile web add dsh-paper-translator@0.2.0 --registry=https://registry.npmjs.org
+dsh plugin --profile web add dsh-paper-translator@0.2.1 --registry=https://registry.npmjs.org
 ```
 
 完成配置后，沿用原来的方式重启 Web 服务。自定义 profile 请替换 `web`；Docker 部署需在容器内安装依赖并挂载文件目录。浏览器所在电脑的文件路径不是服务器文件路径。
@@ -51,6 +63,16 @@ py -3 -m venv E:\dsh-paper-env
 E:\dsh-paper-env\Scripts\python.exe -m pip install PyMuPDF==1.26.6 beautifulsoup4==4.13.5 fonttools==4.61.1
 New-Item -ItemType Directory -Force E:\papers, E:\html-work, E:\html-output
 ```
+
+如果已经安装 Python 3.12，可直接使用该解释器，不必重复创建虚拟环境。在 PowerShell 执行：
+
+```powershell
+$paperPython = py -3.12 -c "import sys; print(sys.executable)"
+& $paperPython -m pip install PyMuPDF==1.26.6 beautifulsoup4==4.13.5 fonttools==4.61.1
+& $paperPython -c "import sys, pymupdf, bs4, fontTools; print(sys.executable); print('依赖正常')"
+```
+
+把打印出的真实路径写入 `pythonExecutable`。如果 `py` 不存在，直接使用已知的 `python.exe` 绝对路径。不要填写 `WindowsApps` 下会跳转 Microsoft Store 的 `python3` 存根。给另一个 Python 安装依赖不会修复插件正在使用的环境。
 
 Linux / macOS 示例：
 
@@ -105,6 +127,14 @@ https://ar5iv.labs.arxiv.org/html/论文编号v版本号
 
 结果保存在 `outputDirectory/<jobId>/` 中。Web 部署的结果位于服务器，需通过部署提供的文件访问方式下载。操作约定见 [AGENT_GUIDE.md](./AGENT_GUIDE.md)。
 
+## 环境诊断
+
+`0.2.1` 在创建任务前检查实际 Python 版本与三个 Python 依赖。缺失或无法导入时，返回 `DEPENDENCY_MISSING`，包含实际 `pythonExecutable`、配置值、`missingPackages` 和针对该解释器的 `installCommand`；安装命令由用户执行，不会自动安装软件。
+
+解释器启动失败、退出异常或没有返回 JSON 时，会显示配置的 Python 路径、正确插件 ID 与 Windows 路径排查方法。解释器根本没启动时，插件无法获知实际 Python 版本，也无法读取另一个插件 ID 下被忽略的配置；提示不是自动迁移或自动修复。
+
+修改配置并安装依赖后重启 DSH，再重新调用 `html_prepare`。仍失败时保留完整错误代码和诊断字段供排查。
+
 ## 支持范围与限制
 
 - 需要可识别的 `article`、`main` 或 `.ltx_document` 正文，以及支持的段落、标题、列表、图注、表格结构。
@@ -125,7 +155,7 @@ https://raw.githubusercontent.com/ToughianGuyou/dsh-paper-translator/main/market
 GitHub [Releases](https://github.com/ToughianGuyou/dsh-paper-translator/releases) 可下载 `.tgz`，在宿主机器执行：
 
 ```bash
-dsh plugin --profile web add ./dsh-paper-translator-0.2.0.tgz
+dsh plugin --profile web add ./dsh-paper-translator-0.2.1.tgz
 ```
 
 Desktop 请换成 `--profile desktop`。离线插件包不包含 Python 解释器和 Python 依赖。
