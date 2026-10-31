@@ -2,7 +2,7 @@
 
 在 DeepSeek Harness 中翻译论文 HTML，输出可以离线打开的译文 HTML。保留原有 MathML / SVG 公式、图片、链接与页面结构，由 Harness 当前模型完成文字翻译。
 
-npm 包名：`dsh-paper-translator`。当前版本：**0.2.1**。
+npm 包名：`dsh-paper-translator`。当前版本：**0.2.2**。
 
 ## 功能
 
@@ -39,7 +39,7 @@ npm 包名：`dsh-paper-translator`。当前版本：**0.2.1**。
 如果有 `dsh` 命令，也可执行：
 
 ```powershell
-dsh plugin --profile desktop add dsh-paper-translator@0.2.1 --registry=https://registry.npmjs.org
+dsh plugin --profile desktop add dsh-paper-translator@0.2.2 --registry=https://registry.npmjs.org
 ```
 
 ### Web 端
@@ -47,7 +47,7 @@ dsh plugin --profile desktop add dsh-paper-translator@0.2.1 --registry=https://r
 在实际运行 DSH Web 的机器上执行：
 
 ```bash
-dsh plugin --profile web add dsh-paper-translator@0.2.1 --registry=https://registry.npmjs.org
+dsh plugin --profile web add dsh-paper-translator@0.2.2 --registry=https://registry.npmjs.org
 ```
 
 完成配置后，沿用原来的方式重启 Web 服务。自定义 profile 请替换 `web`；Docker 部署需在容器内安装依赖并挂载文件目录。浏览器所在电脑的文件路径不是服务器文件路径。
@@ -135,6 +135,16 @@ https://ar5iv.labs.arxiv.org/html/论文编号v版本号
 
 修改配置并安装依赖后重启 DSH，再重新调用 `html_prepare`。仍失败时保留完整错误代码和诊断字段供排查。
 
+## Windows 中文编码修复（0.2.2）
+
+`0.2.0` / `0.2.1` 的 Python 管道输出在 Windows 非 UTF-8 代码页下可能被 Node 错误解码，表现为中文正文、错误消息或输出路径含 `�`。这属于插件协议缺陷，不需要更改 Windows 系统代码页或改掉中文目录名。
+
+`0.2.2` 的 worker 直接写 UTF-8 字节，bridge 同时固定 Python I/O 编码，并严格校验返回字节；非法 UTF-8 会返回 `WORKER_ENCODING_ERROR`，不再静默替换字符。编码回归测试覆盖 cp936/cp932/cp949/cp1251，Windows CI 也运行真实 worker 流程。
+
+升级后必须完整退出 DSH（包括托盘）再打开，让新模块加载；只修改配置或刷新页面不一定重载插件代码。此前直接修改 node_modules 的临时补丁可由正式版本替代。
+
+如果旧任务的待译文本已经乱码，并据此提交过译文，请重新创建任务并翻译；升级不能还原已损坏的译文。若只有显示路径损坏、磁盘文件内容正常，可升级后用原 jobId 查询状态，检查输出路径与文件内容。
+
 ## 支持范围与限制
 
 - 需要可识别的 `article`、`main` 或 `.ltx_document` 正文，以及支持的段落、标题、列表、图注、表格结构。
@@ -155,7 +165,7 @@ https://raw.githubusercontent.com/ToughianGuyou/dsh-paper-translator/main/market
 GitHub [Releases](https://github.com/ToughianGuyou/dsh-paper-translator/releases) 可下载 `.tgz`，在宿主机器执行：
 
 ```bash
-dsh plugin --profile web add ./dsh-paper-translator-0.2.1.tgz
+dsh plugin --profile web add ./dsh-paper-translator-0.2.2.tgz
 ```
 
 Desktop 请换成 `--profile desktop`。离线插件包不包含 Python 解释器和 Python 依赖。

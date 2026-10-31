@@ -23,7 +23,11 @@ def main():
         message = str(exc)
         code = message.split(':', 1)[0] if ':' in message and message.split(':', 1)[0].isupper() else 'INTERNAL_ERROR'
         result = {'ok': False, 'code': code, 'message': message, 'pages': [], 'retryable': False, 'nextAction': 'stop_and_inform_user', 'data': {}}
-    sys.stdout.write(json.dumps(result, ensure_ascii=False))
+    # JSON pipes have a fixed UTF-8 wire encoding, regardless of Windows ANSI
+    # code page or a caller-provided PYTHONIOENCODING. Avoid the locale-bound
+    # TextIOWrapper entirely, including for errors and non-BMP characters.
+    sys.stdout.buffer.write(json.dumps(result, ensure_ascii=False).encode('utf-8'))
+    sys.stdout.buffer.flush()
 
 if __name__ == '__main__':
     main()

@@ -66,3 +66,25 @@ test('nonworking interpreter identifies the configured path and configuration mi
   assert.equal(r.data.expectedPluginId, 'dsh-paper-translator')
   assert.match(r.message, /cordis.patch.yml/)
 })
+
+test('worker launcher receives a fixed UTF-8 pipe encoding', async t => {
+  const exe = await executable(t, `import json,os\nx=${JSON.stringify(envelope).replaceAll('true','True').replaceAll('false','False')}\nx['data']={'encoding':os.environ.get('PYTHONIOENCODING')}\nprint(json.dumps(x))`)
+  const r = await runWorker('pdf_job_status', {}, { ...defaults, pythonExecutable: exe })
+  assert.equal(r.ok, true)
+  assert.equal(r.data.encoding, 'utf-8')
+})
+
+test('invalid UTF-8 inside otherwise valid JSON is rejected instead of replaced', async t => {
+  const exe = await executable(t, `import json,sys\nx=${JSON.stringify(envelope).replaceAll('true','True').replaceAll('false','False')}\nx['message']='中文'\nsys.stdout.buffer.write(json.dumps(x,ensure_ascii=False).encode('cp936'))`)
+  const r = await runWorker('pdf_read_blocks', {}, { ...defaults, pythonExecutable: exe })
+  assert.equal(r.ok, false)
+  assert.equal(r.code, 'WORKER_ENCODING_ERROR')
+})
+
+test('UTF-8 characters split across stdout chunks roundtrip without replacement', async t => {
+  const text = '中文路径/日本語/한국어/Русский/😀'
+  const exe = await executable(t, `import json,sys\nx=${JSON.stringify(envelope).replaceAll('true','True').replaceAll('false','False')}\nx['data']={'text':${JSON.stringify(text)}}\nfor b in json.dumps(x,ensure_ascii=False).encode('utf-8'):\n sys.stdout.buffer.write(bytes([b])); sys.stdout.buffer.flush()`)
+  const r = await runWorker('pdf_read_blocks', {}, { ...defaults, pythonExecutable: exe })
+  assert.equal(r.ok, true)
+  assert.equal(r.data.text, text)
+})

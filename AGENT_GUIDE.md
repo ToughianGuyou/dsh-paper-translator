@@ -14,3 +14,5 @@
 保留的 pdf_prepare 是旧的实验性 PDF 工作流：使用同组 read/submit/status/export 工具，输出 PDF。其复杂公式识别尚有未解决问题，不是本版推荐主流程。PDF 的保留图注/表内文字不送翻译，与 HTML 任务的待译范围不同。
 
 环境错误：若返回 DEPENDENCY_MISSING，向用户展示实际 Python 路径、缺少包和 installCommand。不能向其他解释器随意安装依赖或绕过错误；执行安装需有用户授权。启动失败时核对配置 ID 为 dsh-paper-translator，旧 ID 不会应用于新包。
+
+编码错误：WORKER_ENCODING_ERROR 表示返回字节不是合法 UTF-8，不得把替换后的乱码交给模型翻译。升级 0.2.2 后完整重启宿主。旧任务若已基于乱码提交译文，需要重新准备并翻译，不能声称升级会修复既有内容；仅路径显示错误时可重新查询状态并核对文件。
