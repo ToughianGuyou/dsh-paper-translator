@@ -44,7 +44,10 @@ class WorkerEncodingTests(unittest.TestCase):
                 self.call(encoding, config, 'pdf_submit_translations', {'jobId': job_id, 'version': prepared['data']['version'], 'translations': translated})
                 exported = self.call(encoding, config, 'pdf_export', {'jobId': job_id})
                 path = Path(exported['data']['outputs']['translated.html'])
-                self.assertEqual(path.parent.parent, root / '译文')
+                # Windows TEMP can use an 8.3 alias (RUNNER~1), while the
+                # exporter resolves it to the long path (runneradmin). Verify
+                # filesystem identity without weakening the Unicode checks.
+                self.assertTrue(path.parent.parent.samefile(root / '译文'))
                 html = path.read_text(encoding='utf-8')
                 self.assertIn('译文 ' + LANGUAGES, html)
                 self.assertIn('<math><mi>x</mi></math>', html)
